@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#050505">
+<title>DRIP VIP - Ultimate Key Manager</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+    :root {
+        --blue: #00e5ff;
+        --blue-dark: #008ba3;
+        --blue-soft: rgba(0, 229, 255, 0.25);
+        --blue-border: rgba(0, 229, 255, 0.5);
+        --bg-color: #000000;
+        --input-bg: rgba(255, 255, 255, 0.01);
+        --card-bg: rgba(255, 255, 255, 0.01);
+        --text-main: #ffffff;
+        --text-muted: rgba(255, 255, 255, 0.7);
+        --border-color: rgba(255, 255, 255, 0.15);
+        --success: #00ff88;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body {
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        background-color: var(--bg-color); color: var(--text-main);
+        display: flex; justify-content: center; align-items: center;
+        min-height: 100dvh; overflow-x: hidden; position: relative;
+    }
+    .bg-video {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        object-fit: cover; z-index: -2; pointer-events: none;
+    }
+    .bg-overlay {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(0, 0, 0, 0.35); z-index: -1;
+    }
+    .app-container {
+        position: relative; width: 100%; max-width: 440px; height: 100dvh;
+        padding: 22px 20px; display: flex; flex-direction: column; z-index: 10;
+    }
+    .view { display: none; flex-direction: column; height: 100%; }
+    .view.active { display: flex; animation: fadeIn 0.28s ease both; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    #loginView { justify-content: space-between; padding: 4vh 0 3vh; }
+    .login-logo { text-align: center; margin-bottom: 22px; }
+    .login-logo img {
+        width: 100%; max-width: 200px; height: auto; object-fit: contain;
+        filter: drop-shadow(0 0 25px var(--blue-soft)); border-radius: 50%;
+    }
+    .subtitle {
+        color: var(--text-muted); font-size: 0.62rem; font-weight: 800;
+        letter-spacing: 2.5px; text-transform: uppercase; margin-top: 16px;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    }
+    .login-form { width: 100%; }
+    .input-label {
+        display: flex; align-items: center; gap: 8px; color: var(--text-muted);
+        font-size: 0.6rem; font-weight: 800; letter-spacing: 2px; margin-bottom: 10px;
+        text-transform: uppercase; text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    }
+    .input-label::before {
+        content: ""; width: 6px; height: 6px; background: var(--blue);
+        border-radius: 1px; box-shadow: 0 0 10px var(--blue);
+    }
+    .input-group {
+        display: flex; align-items: center; background: rgba(255, 255, 255, 0.01);
+        border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px;
+        margin-bottom: 14px; transition: all 0.2s; backdrop-filter: blur(1px);
+    }
+    .input-group:focus-within { border-color: var(--blue); box-shadow: 0 0 15px var(--blue-soft); }
+    .input-group input {
+        flex: 1; background: transparent; border: none; outline: none; color: var(--text-main);
+        padding: 15px 14px; font-size: 0.85rem; font-weight: 700; letter-spacing: 1.5px;
+        text-transform: uppercase; min-width: 0; font-family: monospace;
+    }
+    .input-group input::placeholder { color: rgba(255, 255, 255, 0.3); font-weight: 600; }
+    .btn-unlock {
+        width: 100%; background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
+        color: #000; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 12px;
+        padding: 17px; font-size: 0.95rem; font-weight: 900; letter-spacing: 2.5px;
+        cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; margin-bottom: 20px;
+        box-shadow: 0 0 20px var(--blue-soft); display: flex; align-items: center;
+        justify-content: center; gap: 10px; backdrop-filter: blur(1px);
+    }
+    .btn-unlock svg { width: 18px; height: 18px; }
+    .btn-unlock:active { transform: scale(0.97); }
+    .error-msg {
+        display: none; color: #00e5ff; font-size: 0.7rem; font-weight: 800;
+        margin-bottom: 10px; text-align: center; letter-spacing: 0.5px;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    }
+    .error-msg.show { display: block; }
+    .footer-text {
+        text-align: center; font-size: 0.72rem; color: var(--text-muted);
+        line-height: 1.9; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    }
+    .footer-text span { display: block; color: rgba(255, 255, 255, 0.4); font-size: 0.62rem; margin-top: 4px; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .menu-btn, .sound-btn {
+        background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff; font-size: 12px; cursor: pointer; padding: 7px 12px;
+        border-radius: 10px; font-weight: bold; backdrop-filter: blur(1px);
+        box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+    .menu-btn:hover, .sound-btn:hover { background: rgba(0, 229, 255, 0.2); border-color: var(--blue); }
+    .dropdown-menu {
+        display: none; position: absolute; left: 20px; top: 65px;
+        background: rgba(10, 15, 20, 0.85); border: 1px solid var(--blue-border);
+        border-radius: 14px; box-shadow: 0 10px 30px rgba(0, 229, 255, 0.2);
+        width: 230px; z-index: 100; overflow: hidden; backdrop-filter: blur(4px);
+    }
+    .dropdown-menu button {
+        width: 100%; padding: 12px 16px; background: none; border: none;
+        color: rgba(255, 255, 255, 0.95); text-align: left; cursor: pointer;
+        font-size: 13px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .dropdown-menu button:hover { background: var(--blue-soft); color: #fff; }
+    .logout-btn {
+        background: rgba(255, 255, 255, 0.025); color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.2); padding: 7px 13px;
+        border-radius: 10px; font-size: 0.6rem; font-weight: 800;
+        letter-spacing: 1.2px; cursor: pointer; backdrop-filter: blur(1px);
+    }
+    .logout-btn:active { background: rgba(0,229,255,0.3); border-color: var(--blue); }
+    .dashboard-logo { display: flex; justify-content: center; margin-bottom: 16px; }
+    .dashboard-logo img {
+        width: 76px; height: 76px; border-radius: 50%; object-fit: cover;
+        border: 2px solid var(--blue); box-shadow: 0 0 25px var(--blue-soft); background-color: #000;
+    }
+    .scroll-content { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding-bottom: 12px; }
+    .scroll-content::-webkit-scrollbar { display: none; }
+    .pane { display: none; }
+    .pane.active { display: block; animation: fadeIn 0.3s ease both; }
+    .key-card {
+        background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px; padding: 16px; text-align: center; margin-bottom: 16px;
+        position: relative; overflow: hidden; backdrop-filter: blur(1px);
+    }
+    .key-label {
+        display: block; font-size: 0.55rem; font-weight: 800; color: var(--text-muted);
+        letter-spacing: 2.5px; margin-bottom: 8px; position: relative;
+    }
+    .key-value {
+        font-family: 'Courier New', monospace; font-size: 1.05rem; font-weight: 800;
+        color: #ffffff; letter-spacing: 1.5px; position: relative;
+    }
+    .timer-value {
+        font-family: monospace; font-size: 0.8rem; font-weight: 700; color: var(--success);
+        margin-top: 8px; position: relative;
+    }
+    .toggle-item {
+        display: flex; align-items: center; justify-content: space-between;
+        background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px; padding: 16px; margin-bottom: 12px; backdrop-filter: blur(1px);
+    }
+    .toggle-title { font-size: 0.9rem; font-weight: 600; color: #fff; }
+    .switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+        position: absolute; cursor: pointer; inset: 0; background-color: rgba(255,255,255,0.05);
+        transition: 0.25s; border-radius: 26px; border: 1px solid rgba(255,255,255,0.2);
+    }
+    .slider:before {
+        position: absolute; content: ""; height: 20px; width: 20px; left: 2px; bottom: 2px;
+        background-color: #ffffff; transition: 0.25s; border-radius: 50%;
+        box-shadow: 0 0 8px rgba(255,255,255,0.8);
+    }
+    input:checked + .slider { background-color: var(--blue); border-color: var(--blue); box-shadow: 0 0 15px var(--blue-soft); }
+    input:checked + .slider:before { transform: translateX(22px); background-color: #000; }
+    .quick-links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; margin-top: 15px; }
+    .link-btn {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 8px; background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px; padding: 16px 10px; text-decoration: none; color: #fff;
+        font-size: 0.62rem; font-weight: 800; text-align: center; transition: all 0.2s; backdrop-filter: blur(1px);
+    }
+    .link-btn:active { background: var(--blue-soft); border-color: var(--blue); transform: scale(0.98); }
+    .link-btn .link-icon {
+        width: 34px; height: 34px; background: rgba(255,255,255,0.03); border-radius: 10px;
+        display: grid; place-items: center; color: #fff; border: 1px solid rgba(255,255,255,0.15);
+    }
+    .link-btn .link-icon svg { width: 18px; height: 18px; }
+    .connect-btn {
+        width: 100%; background: rgba(255, 255, 255, 0.01); color: rgba(255, 255, 255, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 17px;
+        font-size: 0.85rem; font-weight: 900; letter-spacing: 2.5px; cursor: not-allowed;
+        transition: all 0.3s; margin-bottom: 16px; display: flex; align-items: center;
+        justify-content: center; gap: 10px; backdrop-filter: blur(1px);
+    }
+    .connect-btn svg { width: 19px; height: 19px; }
+    .connect-btn.unlocked {
+        background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
+        color: #000; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.4);
+        box-shadow: 0 0 25px var(--blue-soft);
+    }
+    .connect-btn.unlocked:active { transform: scale(0.98); }
+    .set-item {
+        display: flex; align-items: center; gap: 13px; width: 100%; padding: 13px 15px;
+        background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px; margin-bottom: 10px; color: #fff; text-decoration: none;
+        cursor: pointer; transition: all 0.2s; backdrop-filter: blur(1px);
+    }
+    .set-item:active { background: var(--blue-soft); border-color: var(--blue); }
+    .set-icon {
+        width: 40px; height: 40px; flex-shrink: 0; background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.15); border-radius: 11px; display: grid;
+        place-items: center; color: #fff;
+    }
+    .set-icon svg { width: 19px; height: 19px; }
+    .set-body { flex: 1; text-align: left; }
+    .set-title { font-size: 0.76rem; font-weight: 800; display: block; }
+    .set-sub { font-size: 0.6rem; color: var(--text-muted); display: block; margin-top: 3px; }
+    .nav-bar {
+        display: flex; gap: 8px; margin-top: 14px; background: rgba(255, 255, 255, 0.01);
+        padding: 6px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.15); backdrop-filter: blur(1px);
+    }
+    .nav-btn {
+        flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+        padding: 12px; background: transparent; border: none; border-radius: 10px;
+        color: var(--text-muted); font-size: 0.62rem; font-weight: 900; cursor: pointer; letter-spacing: 1px;
+    }
+    .nav-btn svg { width: 17px; height: 17px; }
+    .nav-btn.active {
+        background: var(--blue-soft); color: #fff; border: 1px solid var(--blue);
+        box-shadow: 0 0 12px var(--blue-soft);
+    }
+    .page-overlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(0, 0, 0, 0.65); z-index: 1000; padding: 25px; flex-direction: column;
+        overflow-y: auto; backdrop-filter: blur(3px);
+    }
+    .view-header {
+        display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15); padding-bottom: 15px;
+        margin-bottom: 20px; max-width: 500px; margin-left: auto; margin-right: auto; width: 100%;
+    }
+    .back-btn {
+        background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff; padding: 8px 16px; border-radius: 10px; cursor: pointer;
+        font-size: 13px; font-weight: bold; backdrop-filter: blur(1px);
+    }
+</style>
+</head>
+<body>
+
+    <video id="bgVideo" autoplay loop muted playsinline preload="auto" class="bg-video">
+        <source src="https://github.com/abbasking20101-dot/Testing-mode/raw/refs/heads/main/AQO3Y8JmUO-eLSMYZ2ro_dzNeTazgXZXxWDpdQiiJxju971KWF12i54sBCqbUIZQMkafrK6PF9VKrwfVtHY4QvHkJEYWnKwyXEOFKD0.mp4">
+    </video>
+    <div class="bg-overlay"></div>
+
+    <audio id="bgMusic" loop>
+        <source src="https://github.com/abbasking20101-dot/GAMER_KING/raw/refs/heads/main/ReelAudio-24883.mp3" type="audio/mpeg">
+    </audio>
+<div class="app-container">
+    <section id="loginView" class="view active">
+        <div class="login-logo">
+            <img src="https://i.ibb.co/n8RtQzF1/Screenshot-2026-10-12-20-49-08-27-965bbf4d18d205f782c6b8409c5773a4.png" alt="DRIP VIP Logo">
+            <p class="subtitle">No Account. No Password. Just Your Key.</p>
+        </div>
+
+        <div class="login-form">
+            <form onsubmit="event.preventDefault(); verifyAndLogin();">
+                <label class="input-label" for="accessKey">ACCESS KEY</label>
+                <div class="input-group">
+                    <input type="text" id="accessKey" placeholder="ENTER KEY (E.G. 1H-...)" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="error-msg" id="errorMsg"></div>
+                <button type="submit" class="btn-unlock" id="unlockBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+                    <span>UNLOCK</span>
+                </button>
+            </form>
+
+            <div class="footer-text">
+                no key? contact your seller.
+                <span>your time starts when you connect.</span>
+            </div>
+        </div>
+    </section>
+    <section id="dashView" class="view">
+        <div class="top-bar">
+            <button class="menu-btn" onclick="toggleDropdown(event)">☰ Menu</button>
+            <div style="display: flex; gap: 8px;">
+                <button id="soundBtn" class="sound-btn" onclick="toggleMusicSound()">🔊 Song: OFF</button>
+                <button class="logout-btn" onclick="logout()">LOGOUT</button>
+            </div>
+        </div>
+
+        <div id="dropdownMenu" class="dropdown-menu">
+            <button onclick="openSongSelector()">🎵 Change Song</button>
+            <button onclick="openVideoSelector()">🎬 Change Video</button>
+            <button id="soundMenuBtn" onclick="toggleVideoSound()">🔊 Video Sound: OFF</button>
+        </div>
+
+        <div class="dashboard-logo">
+            <img src="https://i.ibb.co/n8RtQzF1/Screenshot-2026-10-12-20-49-08-27-965bbf4d18d205f782c6b8409c5773a4.png" alt="DRIP VIP Logo">
+        </div>
+        
+        <div class="scroll-content">
+            <div id="homePane" class="pane active">
+                <div class="key-card">
+                    <span class="key-label">YOUR ACCESS KEY</span>
+                    <span class="key-value" id="displayKey">—</span>
+                    <div class="timer-value" id="timerDisplay">Time Left: Calculating...</div>
+                </div>
+
+                <div class="toggle-item">
+                    <div class="toggle-title">Aimbot Legit</div>
+                    <label class="switch">
+                        <input type="checkbox" id="aimbotToggle" onchange="checkToggles()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="toggle-item">
+                    <div class="toggle-title">High FPS</div>
+                    <label class="switch">
+                        <input type="checkbox" id="fpsToggle" onchange="checkToggles()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <button class="connect-btn" id="connectBtn" onclick="addSubscription(this)" disabled style="margin-top: 15px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"></path>
+                        <path d="M9 12l2 2 4-4"></path>
+                    </svg>
+                    <span>CONNECT TO VPN</span>
+                </button>
+
+                <div class="quick-links">
+                    <a href="https://play.google.com/store/apps/details?id=com.happproxy" target="_blank" class="link-btn">
+                        <div class="link-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                        </div>
+                        Happ App
+                    </a>
+                    <a href="https://t.me/+2wTmyeCUtlFiYTY1" target="_blank" class="link-btn">
+                        <div class="link-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.2 2.9 10.4c-.9.35-.87 1.62.04 1.93l4.6 1.55 1.75 5.35c.26.8 1.3.96 1.8.27l2.4-3.3 4.6 3.4c.7.52 1.7.14 1.87-.72l3-14.1c.2-.94-.73-1.75-1.46-1.53Z"/></svg>
+                        </div>
+                        Telegram
+                    </a>
+                </div>
+            </div>
+            <div id="settingsPane" class="pane">
+                <button class="set-item" onclick="copyKey()">
+                    <div class="set-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </div>
+                    <div class="set-body">
+                        <span class="set-title">Copy Access Key</span>
+                        <span class="set-sub" id="copyStatus">Tap to copy</span>
+                    </div>
+                </button>
+
+                <button class="set-item" onclick="logout()">
+                    <div class="set-icon" style="color: var(--blue); background: var(--blue-soft);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                    </div>
+                    <div class="set-body">
+                        <span class="set-title" style="color: var(--blue);">Logout</span>
+                        <span class="set-sub">Clear session</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <nav class="nav-bar">
+            <button class="nav-btn active" id="navHome" onclick="showTab('home')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
+                Home
+            </button>
+            <button class="nav-btn" id="navSettings" onclick="showTab('settings')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-6M4 9V3M12 21v-9M12 6V3M20 21v-4M20 11V3"/><path d="M1.5 15h5M9.5 6h5M17.5 17h5"/></svg>
+                Settings
+            </button>
+        </nav>
+    </section>
+</div>
+<div id="songSelectPage" class="page-overlay">
+    <div class="view-header">
+        <h2 style="margin: 0; color: #ffffff; font-size: 20px; text-align: left;">🎵 Select Background Song</h2>
+        <button class="back-btn" onclick="goBackToHome('songSelectPage')">← Back</button>
+    </div>
+    <div style="max-width: 500px; margin: 0 auto; width: 100%; background: rgba(255,255,255,0.01); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(1px);">
+        <label style="margin-top: 0; color: #ffffff; font-weight: 700; font-size: 13px; display: block; margin-bottom: 12px;">Choose a track:</label>
+        <div id="songListContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+    </div>
+</div>
+
+<div id="videoSelectPage" class="page-overlay">
+    <div class="view-header">
+        <h2 style="margin: 0; color: #ffffff; font-size: 20px; text-align: left;">🎬 Select Background Video</h2>
+        <button class="back-btn" onclick="goBackToHome('videoSelectPage')">← Back</button>
+    </div>
+    <div style="max-width: 500px; margin: 0 auto; width: 100%; background: rgba(255,255,255,0.01); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(1px);">
+        <label style="margin-top: 0; color: #ffffff; font-weight: 700; font-size: 13px; display: block; margin-bottom: 12px;">Choose a video:</label>
+        <div id="videoListContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+    </div>
+</div>
+<script>
+    const firebaseConfig = { databaseURL: "https://gamer-king-72dd9-default-rtdb.firebaseio.com/" };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.database();
+
+    const STORAGE_KEY   = 'DRIP_vip_access';
+    const EXPIRY_KEY    = 'DRIP_vip_expiry';
+    const ACTIVE_KEY    = 'DRIP_vip_key_val';
+    const TOKEN_KEY     = 'DRIP_vip_auth_token';
+    const V2RAY_PACKAGE = 'com.v2ray.ang.fdroid';
+
+    const loginView    = document.getElementById('loginView');
+    const dashView     = document.getElementById('dashView');
+    const keyInput     = document.getElementById('accessKey');
+    const errorMsg     = document.getElementById('errorMsg');
+    const displayKey   = document.getElementById('displayKey');
+    const timerDisplay = document.getElementById('timerDisplay');
+    const homePane     = document.getElementById('homePane');
+    const settingsPane = document.getElementById('settingsPane');
+    const navHome      = document.getElementById('navHome');
+    const navSettings  = document.getElementById('navSettings');
+    const copyStatus   = document.getElementById('copyStatus');
+    const connectBtn   = document.getElementById('connectBtn');
+    const aimbotToggle = document.getElementById('aimbotToggle');
+    const fpsToggle    = document.getElementById('fpsToggle');
+
+    let countdownInterval = null;
+    let activeKeyRef = null;
+
+    const playlist = [
+        { name: "🎵 Gamer King Original (Default)", url: "https://github.com/abbasking20101-dot/GAMER_KING/raw/refs/heads/main/ReelAudio-24883.mp3" },
+        { name: "🎵 Epic Gaming Beat 1", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+        { name: "🎵 High Energy Cyber Track", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+        { name: "🎵 Night Drive Lo-Fi", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+        { name: "🎵 Action Bass Booster", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" }
+    ];
+
+    const videoPlaylist = [
+        { name: "🎬 Video 1", url: "https://github.com/abbasking20101-dot/Testing-mode/raw/refs/heads/main/AQO3Y8JmUO-eLSMYZ2ro_dzNeTazgXZXxWDpdQiiJxju971KWF12i54sBCqbUIZQMkafrK6PF9VKrwfVtHY4QvHkJEYWnKwyXEOFKD0.mp4" },
+        { name: "🎬 Video 2", url: "https://github.com/abbasking20101-dot/GAMER_KING/raw/refs/heads/main/Video-70965.mp4" },
+        { name: "🎬 Video 3", url: "https://github.com/abbasking20101-dot/GAMER_KING/raw/refs/heads/main/Fonk%20song%20%F0%9F%8E%B5%20%F0%9F%91%BF%F0%9F%98%88%F0%9F%92%80%F0%9F%91%BF.mp4" },
+        { name: "🎬 Video 4", url: "https://github.com/abbasking20101-dot/GAMER_KING/raw/refs/heads/main/%F0%9F%8E%A7%20--%20GETA%20ONLY%20--%20SLOWED%20--%20%23avee_player%20%20%23%20phonk%20%23funk%20%23sllicx%20ENGLISH%F0%9F%8E%B5%20Rate%20the%20song-%20-10%F0%9F%94%A5%20.mp4" },
+        { name: "🎬 Video 5", url: "https://github.com/abbasking20101-dot/GAMER_KING/raw/refs/heads/main/M4%20on%207eleven%20Sen%20de%20bu%20tarz%20editler%20yapmak%20istiyorsan%20UmutcanFx%20ve%20Academy%E2%80%99e%20biomdan%20g%C3%B6z%20atabil.mp4" }
+    ];
+
+    window.onload = function() {
+        renderSongList();
+        renderVideoList();
+        let bgVid = document.getElementById('bgVideo');
+        if(bgVid) { bgVid.play().catch(e => { console.log("Autoplay prevented"); }); }
+    };
+
+    function renderSongList() {
+        const container = document.getElementById('songListContainer');
+        if(!container) return;
+        container.innerHTML = "";
+        playlist.forEach((song) => {
+            let btn = document.createElement('button');
+            btn.style.cssText = "width: 100%; padding: 12px 15px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left;";
+            btn.innerText = song.name;
+            btn.onclick = () => changeSong(song.url);
+            container.appendChild(btn);
+        });
+    }
+    
+    function renderVideoList() {
+        const container = document.getElementById('videoListContainer');
+        if(!container) return;
+        container.innerHTML = "";
+        videoPlaylist.forEach((vid) => {
+            let btn = document.createElement('button');
+            btn.style.cssText = "width: 100%; padding: 12px 15px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left;";
+            btn.innerText = vid.name;
+            btn.onclick = () => changeVideo(vid.url);
+            container.appendChild(btn);
+        });
+    }
+
+    function changeSong(url) {
+        let music = document.getElementById('bgMusic');
+        let soundBtn = document.getElementById('soundBtn');
+        music.src = url;
+        music.play().then(() => {
+            soundBtn.innerText = "🔊 Song: ON";
+            soundBtn.style.background = "var(--blue-soft)";
+            soundBtn.style.borderColor = "var(--blue)";
+        }).catch(e => { alert("Song loaded! Click play/toggle sound to start."); });
+        goBackToHome('songSelectPage');
+    }
+
+    function changeVideo(url) {
+        let bgVid = document.getElementById('bgVideo');
+        if(bgVid) {
+            bgVid.src = url;
+            bgVid.load();
+            bgVid.play().catch(e => { console.log("Video play error"); });
+        }
+        goBackToHome('videoSelectPage');
+    }
+
+    function openSongSelector() {
+        document.getElementById('dropdownMenu').style.display = 'none';
+        document.getElementById('dashView').style.display = 'none';
+        document.getElementById('songSelectPage').style.display = 'flex';
+    }
+
+    function openVideoSelector() {
+        document.getElementById('dropdownMenu').style.display = 'none';
+        document.getElementById('dashView').style.display = 'none';
+        document.getElementById('videoSelectPage').style.display = 'flex';
+    }
+
+    function goBackToHome(pageId) {
+        document.getElementById(pageId).style.display = 'none';
+        document.getElementById('dashView').style.display = 'flex';
+    }
+
+    function toggleMusicSound() {
+        let music = document.getElementById('bgMusic');
+        let soundBtn = document.getElementById('soundBtn');
+        if (music.paused) {
+            music.play().then(() => {
+                soundBtn.innerText = "🔊 Song: ON";
+                soundBtn.style.background = "var(--blue-soft)";
+                soundBtn.style.borderColor = "var(--blue)";
+            }).catch(e => { alert("Please interact with the page first to enable audio!"); });
+        } else {
+            music.pause();
+            soundBtn.innerText = "🔇 Song: OFF";
+            soundBtn.style.background = "rgba(255, 255, 255, 0.025)";
+            soundBtn.style.borderColor = "rgba(255, 255, 255, 0.2)";
+        }
+    }
+
+    function toggleVideoSound() {
+        let video = document.getElementById('bgVideo');
+        let soundMenuBtn = document.getElementById('soundMenuBtn');
+        if (video.muted) {
+            video.muted = false;
+            soundMenuBtn.innerText = "🔊 Video Sound: ON";
+        } else {
+            video.muted = true;
+            soundMenuBtn.innerText = "🔇 Video Sound: OFF";
+        }
+        let dropdown = document.getElementById('dropdownMenu');
+        if (dropdown) dropdown.style.display = 'none';
+    }
+
+    function toggleDropdown(event) {
+        event.stopPropagation();
+        let dropdown = document.getElementById('dropdownMenu');
+        dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+    }
+
+    window.onclick = function(event) {
+        if (!event.target.matches('.menu-btn') && !event.target.closest('.dropdown-menu')) {
+            let dropdown = document.getElementById('dropdownMenu');
+            if (dropdown) dropdown.style.display = 'none';
+        }
+    }
+    
+    function getDeviceHWID() {
+        let hwid = localStorage.getItem('DRIP_device_hwid');
+        if (!hwid) {
+            hwid = 'DEV-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('DRIP_device_hwid', hwid);
+        }
+        return hwid;
+    }
+
+    function getPoolNodeFromKey(key) {
+        if (key.startsWith('1M-') || key.includes('GAMER-KING')) return 'licenses_1min';
+        if (key.startsWith('1H-')) return 'licenses_1hour';
+        if (key.startsWith('1D-')) return 'licenses_1day';
+        if (key.startsWith('7D-')) return 'licenses_7days';
+        if (key.startsWith('30D-')) return 'licenses_30days';
+        return null;
+    }
+
+    function generateRandomAuthToken() {
+        return 'GK-TOKEN-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    }
+
+    function verifyAndLogin() {
+        const key = keyInput.value.trim().toUpperCase();
+        if(!key){ showError('PLEASE ENTER YOUR ACCESS KEY'); return; }
+
+        const unlockBtn = document.getElementById('unlockBtn');
+        const spanText = unlockBtn.querySelector('span');
+        spanText.textContent = 'VERIFYING...';
+
+        db.ref(`licenses/${key}`).once('value').then(snapshot => {
+            if (!snapshot.exists()) {
+                spanText.textContent = 'UNLOCK';
+                showError('ACCESS DENIED: INVALID OR EXPIRED KEY!');
+                keyInput.value = '';
+                return;
+            }
+
+            let keyData = snapshot.val();
+            const poolNode = getPoolNodeFromKey(key) || 'licenses_1hour';
+            const currentDevice = getDeviceHWID();
+            const now = Date.now();
+
+            // 1. अगर की का समय पहले ही खत्म हो चुका है तो उसे तुरंत डिलीट करें और एक्सेस मना करें
+            if (keyData.expiresAt && now >= keyData.expiresAt) {
+                db.ref(`licenses/${key}`).remove();
+                db.ref(`${poolNode}/${key}`).remove();
+                spanText.textContent = 'UNLOCK';
+                showError('ACCESS DENIED: KEY EXPIRED!');
+                keyInput.value = '';
+                return;
+            }
+
+            // 2. डिवाइस बाइंडिंग चेक: अगर की किसी और डिवाइस पर रजिस्टर्ड है
+            if (keyData.lastDevice && keyData.lastDevice !== currentDevice) {
+                spanText.textContent = 'UNLOCK';
+                showError('ALREADY USED ON ANOTHER DEVICE!');
+                keyInput.value = '';
+                return;
+            }
+
+            let durationMs = 60 * 60 * 1000; 
+            if (key.startsWith('1M-') || key.includes('GAMER-KING')) {
+                durationMs = 1 * 60 * 1000; 
+            } else if (keyData.duration && keyData.durationUnit) {
+                if (keyData.durationUnit === 'minutes' || keyData.durationUnit === '1min') {
+                    durationMs = keyData.duration * 60 * 1000;
+                } else if (keyData.durationUnit === 'hours') {
+                    durationMs = keyData.duration * 60 * 60 * 1000;
+                } else if (keyData.durationUnit === 'days') {
+                    durationMs = keyData.duration * 24 * 60 * 60 * 1000;
+                }
+            } else {
+                if (key.startsWith('1M-')) durationMs = 1 * 60 * 1000;
+                else if (key.startsWith('1H-')) durationMs = 1 * 60 * 60 * 1000;
+                else if (key.startsWith('1D-')) durationMs = 1 * 24 * 60 * 60 * 1000;
+                else if (key.startsWith('7D-')) durationMs = 7 * 24 * 60 * 60 * 1000;
+                else if (key.startsWith('30D-')) durationMs = 30 * 24 * 60 * 60 * 1000;
+            }
+
+            let expiryTime = keyData.expiresAt;
+            let authToken = keyData.authToken;
+
+            // 3. अगर पहली बार लॉगिन कर रहा है, तभी नया टाइमर और टोकन सेट करें; दुबारा लॉगिन पर टाइमर रीसेट नहीं होगा!
+            if (!expiryTime || expiryTime === 0 || !authToken) {
+                expiryTime = now + durationMs;
+                authToken = generateRandomAuthToken();
+                
+                let updateObj = {
+                    status: "used",
+                    startedAt: now,
+                    expiresAt: expiryTime,
+                    authToken: authToken,
+                    lastDevice: currentDevice
+                };
+
+                let updates = {};
+                updates[`licenses/${key}`] = updateObj;
+                updates[`${poolNode}/${key}`] = updateObj;
+                db.ref().update(updates);
+            } else {
+                // अगर पहले से चालू है, तो सुनिश्चित करें कि डिवाइस लॉक फिक्स रहे
+                if (!keyData.lastDevice) {
+                    db.ref(`licenses/${key}/lastDevice`).set(currentDevice);
+                    db.ref(`${poolNode}/${key}/lastDevice`).set(currentDevice);
+                }
+            }
+
+            finalizeLogin(key, expiryTime, authToken);
+
+        }).catch(err => {
+            document.getElementById('unlockBtn').querySelector('span').textContent = 'UNLOCK';
+            showError('DATABASE CONNECTION ERROR!');
+            keyInput.value = '';
+        });
+    }
+
+    function finalizeLogin(key, expiryTime, authToken) {
+        errorMsg.classList.remove('show');
+        document.getElementById('unlockBtn').querySelector('span').textContent = 'UNLOCK';
+        
+        localStorage.setItem(STORAGE_KEY, '1');
+        localStorage.setItem(ACTIVE_KEY, key);
+        localStorage.setItem(EXPIRY_KEY, expiryTime);
+        localStorage.setItem(TOKEN_KEY, authToken);
+
+        openDashboard(key, expiryTime);
+    }
+
+    function showError(msg){
+        errorMsg.textContent = msg;
+        errorMsg.classList.add('show');
+    }
+
+    keyInput.addEventListener('input', () => errorMsg.classList.remove('show'));
+    
+    function openDashboard(key, expiryTime){
+        displayKey.textContent = key;
+        showTab('home');
+        loginView.classList.remove('active');
+        dashView.classList.add('active');
+
+        startTimer(expiryTime, key);
+        listenKeyDeletion(key);
+        checkToggles();
+    }
+
+    function listenKeyDeletion(key) {
+        if (activeKeyRef) activeKeyRef.off();
+        activeKeyRef = db.ref(`licenses/${key}`);
+
+        activeKeyRef.on('value', snapshot => {
+            if (!snapshot.exists()) {
+                alert('ACCESS DENIED: Key deleted or expired!');
+                logout();
+            }
+        });
+    }
+
+    function startTimer(expiryTime, key) {
+        if (countdownInterval) clearInterval(countdownInterval);
+
+        countdownInterval = setInterval(() => {
+            const now = new Date().getTime();
+            const distance = expiryTime - now;
+
+            if (distance <= 0) {
+                clearInterval(countdownInterval);
+                const poolNode = getPoolNodeFromKey(key) || 'licenses_1hour';
+                if (key) {
+                    db.ref(`licenses/${key}`).remove();
+                    db.ref(`${poolNode}/${key}`).remove();
+                }
+                alert('ACCESS DENIED: Time is up!');
+                logout();
+                return;
+            }
+
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+            if(timerDisplay) {
+                if (days > 0) {
+                    timerDisplay.textContent = `Time Left: ${days}d ${hours}h ${minutes}m ${seconds}s`;
+                } else {
+                    timerDisplay.textContent = `Time Left: ${hours}h ${minutes}m ${seconds}s`;
+                }
+            }
+        }, 1000);
+    }
+
+    function logout(){
+        if (countdownInterval) clearInterval(countdownInterval);
+        if (activeKeyRef) {
+            let savedKey = localStorage.getItem(ACTIVE_KEY);
+            if(savedKey) db.ref(`licenses/${savedKey}`).off();
+        }
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(EXPIRY_KEY);
+            localStorage.removeItem(ACTIVE_KEY);
+            localStorage.removeItem(TOKEN_KEY);
+        } catch(e){}
+        
+        keyInput.value = '';
+        dashView.classList.remove('active');
+        loginView.classList.add('active');
+    }
+
+    function showTab(tab){
+        const isHome = tab === 'home';
+        homePane.classList.toggle('active', isHome);
+        settingsPane.classList.toggle('active', !isHome);
+        navHome.classList.toggle('active', isHome);
+        navSettings.classList.toggle('active', !isHome);
+        document.querySelector('.scroll-content').scrollTop = 0;
+    }
+
+    function checkToggles(){
+        const allOn = aimbotToggle.checked && fpsToggle.checked;
+        if (allOn){
+            connectBtn.disabled = false;
+            connectBtn.classList.add('unlocked');
+        } else {
+            connectBtn.disabled = true;
+            connectBtn.classList.remove('unlocked');
+        }
+    }
+
+    function addSubscription(btn){
+        const original = btn.querySelector('span').textContent;
+        btn.querySelector('span').textContent = 'CONNECTING...';
+        btn.disabled = true;
+
+        const directVpnUrl = 'hysteria2://SLTX-2E9C-B28C-5464@wraith-bom3.silentx.store:443/?alpn=h3&insecure=1&sni=wraith-bom3.silentx.store#M1NX%20VIP';
+        
+        const intentLink = 'intent://import/' + encodeURIComponent(directVpnUrl) + '#Intent;scheme=v2raytun;package=com.Drip.gamer;end;';
+
+
+        window.location.href = intentLink;
+
+        setTimeout(() => {
+            btn.querySelector('span').textContent = original;
+            checkToggles();
+        }, 2000);
+    }
+
+    // Fixed Copy Key Functionality
+    function copyKey(){
+        const key = displayKey.textContent.trim();
+        if(key && key !== '—') {
+            navigator.clipboard.writeText(key).then(() => {
+                copyStatus.textContent = '✔ Copied to clipboard';
+                copyStatus.style.color = 'var(--success)';
+                setTimeout(() => {
+                    copyStatus.textContent = 'Tap to copy';
+                    copyStatus.style.color = '';
+                }, 2000);
+            }).catch(err => {
+                // Fallback for restricted mobile WebViews
+                let textArea = document.createElement("textarea");
+                textArea.value = key;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    copyStatus.textContent = '✔ Copied to clipboard';
+                    copyStatus.style.color = 'var(--success)';
+                } catch (e) {
+                    copyStatus.textContent = 'Failed to copy';
+                    copyStatus.style.color = 'red';
+                }
+                document.body.removeChild(textArea);
+                setTimeout(() => {
+                    copyStatus.textContent = 'Tap to copy';
+                    copyStatus.style.color = '';
+                }, 2000);
+            });
+        }
+    }
+
+    (function autoLogin(){
+        try {
+            const isLogged = localStorage.getItem(STORAGE_KEY);
+            const expiryTime = localStorage.getItem(EXPIRY_KEY);
+            const savedKey = localStorage.getItem(ACTIVE_KEY);
+
+            if (isLogged === '1' && expiryTime && savedKey) {
+                const now = new Date().getTime();
+                if (now < parseInt(expiryTime)) {
+                    openDashboard(savedKey, parseInt(expiryTime));
+                } else {
+                    const poolNode = getPoolNodeFromKey(savedKey) || 'licenses_1hour';
+                    db.ref(`licenses/${savedKey}`).remove();
+                    db.ref(`${poolNode}/${savedKey}`).remove();
+                    logout();
+                }
+            }
+        } catch(e){}
+    })();
+</script>
+</body>
+</html>
